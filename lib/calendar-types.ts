@@ -18,6 +18,7 @@ export type CalendarStatus =
   | "connected" // events fetched successfully
   | "needs_authorization" // connector exists, user must consent
   | "needs_setup" // connector not created/linked yet
+  | "passport_missing" // Vercel Passport not enabled for the project
   | "error"
 
 export type CalendarResult = {

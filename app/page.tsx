@@ -1,16 +1,17 @@
-import { CalendarDays } from "lucide-react"
-import { getUpcomingEvents, MS_GRAPH_CONNECTOR } from "@/lib/graph"
-import { UpNextCard } from "@/components/up-next-card"
-import { UpcomingList } from "@/components/upcoming-list"
-import { ConnectState } from "@/components/connect-state"
-import { SetupState } from "@/components/setup-state"
-import { EmptyState } from "@/components/empty-state"
-import { RefreshButton } from "@/components/refresh-button"
+import { CalendarDays } from 'lucide-react'
+import { getUpcomingEvents, MS_GRAPH_CONNECTOR } from '@/lib/graph'
+import { UpNextCard } from '@/components/up-next-card'
+import { UpcomingList } from '@/components/upcoming-list'
+import { ConnectState } from '@/components/connect-state'
+import { SetupState } from '@/components/setup-state'
+import { EmptyState } from '@/components/empty-state'
+import { RefreshButton } from '@/components/refresh-button'
+import { headers } from 'next/headers'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
 export default async function Page() {
-  const result = await getUpcomingEvents()
+  const result = await getUpcomingEvents(await headers())
   // Show all events across the next 2 weeks: the "Up Next" hero card plus the rest.
   const [upNext, ...rest] = result.events
 
@@ -24,29 +25,32 @@ export default async function Page() {
           <div>
             <h1 className="text-lg font-semibold leading-tight tracking-tight">Up Next</h1>
             <p className="text-sm text-muted-foreground">
-              {result.status === "connected" && result.account
-                ? result.account
-                : "Microsoft Outlook calendar"}
+              {result.status === 'connected' && result.account ? result.account : 'Microsoft Outlook calendar'}
             </p>
           </div>
         </div>
-        {result.status === "connected" && <RefreshButton />}
+        {result.status === 'connected' && <RefreshButton />}
       </header>
 
       <div className="mt-8">
-        {result.status === "needs_setup" && (
-          <SetupState message={result.message} connectorUid={MS_GRAPH_CONNECTOR} />
+        {result.status === 'needs_setup' && <SetupState message={result.message} connectorUid={MS_GRAPH_CONNECTOR} />}
+
+        {result.status === 'needs_authorization' && <ConnectState authorizationUrl={result.authorizationUrl} />}
+
+        {result.status === 'passport_missing' && (
+          <div className="rounded-3xl border border-destructive/30 bg-card p-8 text-center shadow-sm">
+            <h2 className="text-xl font-semibold tracking-tight">Vercel Passport not configured</h2>
+            <p className="mx-auto mt-2 max-w-md text-pretty leading-relaxed text-muted-foreground">
+              The project is not configured for Vercel Passport, no user token found in the request
+            </p>
+          </div>
         )}
 
-        {result.status === "needs_authorization" && (
-          <ConnectState authorizationUrl={result.authorizationUrl} />
-        )}
-
-        {result.status === "error" && (
+        {result.status === 'error' && (
           <div className="rounded-3xl border border-destructive/30 bg-card p-8 text-center shadow-sm">
             <h2 className="text-xl font-semibold tracking-tight">Couldn&apos;t load your calendar</h2>
             <p className="mx-auto mt-2 max-w-md text-pretty leading-relaxed text-muted-foreground">
-              {result.message ?? "Something went wrong while reaching Microsoft Graph."}
+              {result.message ?? 'Something went wrong while reaching Microsoft Graph.'}
             </p>
             <div className="mt-6 flex justify-center">
               <RefreshButton />
@@ -54,7 +58,7 @@ export default async function Page() {
           </div>
         )}
 
-        {result.status === "connected" &&
+        {result.status === 'connected' &&
           (upNext ? (
             <>
               <UpNextCard event={upNext} />
