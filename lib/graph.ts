@@ -43,6 +43,22 @@ export function getCurrentUserId(headers: ReadonlyHeaders): { userId: string; ok
   return { ok: true, userId: payload.external_sub }
 }
 
+/**
+ * Derive the app's own origin from the incoming request headers so we can tell
+ * Vercel Connect where to send the user back after they finish authorizing.
+ * Without this, Connect has no return URL and the browser is left on the
+ * connect.vercel.com callback instead of returning to the app.
+ */
+function getAppOrigin(headers: ReadonlyHeaders): string | undefined {
+  const host = headers.get('x-forwarded-host') ?? headers.get('host')
+  if (!host) {
+    return undefined
+  }
+  const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1')
+  const proto = headers.get('x-forwarded-proto') ?? (isLocal ? 'http' : 'https')
+  return `${proto}://${host}`
+}
+
 type GraphEvent = {
   id: string
   subject?: string
@@ -102,7 +118,8 @@ function mapEvent(e: GraphEvent): CalendarEvent {
  * Returns either a token, or a recoverable state the UI can act on.
  */
 async function getGraphToken(
-  userId: string
+  userId: string,
+  callbackUrl?: string
 ): Promise<
   | { ok: true; token: string }
   | { ok: false; status: 'needs_authorization'; authorizationUrl?: string }
@@ -123,10 +140,15 @@ async function getGraphToken(
       error instanceof NoValidTokenError
     ) {
       try {
-        const { url } = await startAuthorization(MS_GRAPH_CONNECTOR, {
-          subject: { type: 'user', id: userId },
-          scopes: MS_GRAPH_SCOPES,
-        })
+        const { url } = await startAuthorization(
+          MS_GRAPH_CONNECTOR,
+          {
+            subject: { type: 'user', id: userId },
+            scopes: MS_GRAPH_SCOPES,
+          },
+          // Send the user back to the app once Connect finishes the OAuth flow.
+          callbackUrl ? { callbackUrl } : undefined
+        )
         return { ok: false, status: 'needs_authorization', authorizationUrl: url }
       } catch {
         return { ok: false, status: 'needs_authorization' }
@@ -189,7 +211,8 @@ export async function getUpcomingEvents(headers: ReadonlyHeaders): Promise<Calen
     }
   }
   const userId = userIdResult.userId
-  const tokenResult = await getGraphToken(userId)
+  const callbackUrl = getAppOrigin(headers)
+  const tokenResult = await getGraphToken(userId, callbackUrl)
 
   if (!tokenResult.ok) {
     return {
@@ -221,10 +244,14 @@ export async function getUpcomingEvents(headers: ReadonlyHeaders): Promise<Calen
 
     if (!eventsRes.ok) {
       if (eventsRes.status === 401 || eventsRes.status === 403) {
-        const { url } = await startAuthorization(MS_GRAPH_CONNECTOR, {
-          subject: { type: 'user', id: userId },
-          scopes: MS_GRAPH_SCOPES,
-        }).catch(() => ({ url: undefined }))
+        const { url } = await startAuthorization(
+          MS_GRAPH_CONNECTOR,
+          {
+            subject: { type: 'user', id: userId },
+            scopes: MS_GRAPH_SCOPES,
+          },
+          callbackUrl ? { callbackUrl } : undefined
+        ).catch(() => ({ url: undefined }))
         return { status: 'needs_authorization', events: [], authorizationUrl: url }
       }
       const text = await eventsRes.text().catch(() => '')

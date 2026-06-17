@@ -116,9 +116,10 @@ pnpm dev
 
 Then open [http://localhost:3000](http://localhost:3000).
 
-> Note: Vercel Passport gates the deployed app, so the `x-vercel-oidc-passport-token` header is
-> only present on Vercel. Locally, the user-identity step (`getCurrentUserId`) won't have a token
-> unless you supply one, so the calendar view is best verified on a Vercel deployment.
+> Note: Vercel Passport gates the deployed app, so the `x-vercel-oidc-passport-token` header is only present on Vercel.  
+> Locally, the user-identity step (`getCurrentUserId`) won't have a token unless you supply one, so the calendar view is best verified on a Vercel deployment.
+
+---
 
 ## Environment variables
 
@@ -127,11 +128,15 @@ Then open [http://localhost:3000](http://localhost:3000).
 | `MS_GRAPH_CONNECTOR` | No | Connect connector UID for Microsoft Graph. Defaults to `oauth/microsoft-graph`. |
 | `VERCEL_OIDC_TOKEN` | Local dev only | Pulled by `vercel env pull`, injected automatically on Vercel deployments. |
 
+---
+
 ## How it works (code map)
 
 - `lib/graph.ts` — the core logic: reads the Passport user ID, gets a Graph token via Connect (`getToken` / `startAuthorization`), and fetches `/me/calendarView`. It also maps recoverable errors (needs authorization, needs setup) to UI states.
 - `app/page.tsx` — server component that renders the appropriate state (connected, needs setup, needs authorization, Passport missing, error).
 - `components/` — the calendar UI (up-next hero card, upcoming list, setup/connect states).
+
+---
 
 ## Learn more
 
