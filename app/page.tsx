@@ -11,7 +11,9 @@ export const dynamic = "force-dynamic"
 
 export default async function Page() {
   const result = await getUpcomingEvents()
-  const [upNext, ...rest] = result.events
+  // Show the next 4 items: the "Up Next" hero card plus the 3 following events.
+  const nextFour = result.events.slice(0, 4)
+  const [upNext, ...rest] = nextFour
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
