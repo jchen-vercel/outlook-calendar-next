@@ -1,0 +1,4 @@
+allowBuilds:
+  sharp: true
+minimumReleaseAgeExclude:
+  - '@vercel/connect@0.2.5'
