@@ -175,7 +175,7 @@ async function graphFetch(token: string, path: string): Promise<Response> {
 }
 
 /**
- * Fetch the user's upcoming events from now through the next 7 days using the
+ * Fetch the user's upcoming events from now through the next 14 days using the
  * Microsoft Graph calendarView endpoint (expands recurring events).
  */
 export async function getUpcomingEvents(): Promise<CalendarResult> {
@@ -194,13 +194,13 @@ export async function getUpcomingEvents(): Promise<CalendarResult> {
 
   const token = tokenResult.token
   const now = new Date()
-  const end = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+  const end = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
 
   const params = new URLSearchParams({
     startDateTime: now.toISOString(),
     endDateTime: end.toISOString(),
     $orderby: "start/dateTime",
-    $top: "25",
+    $top: "100",
     $select:
       "id,subject,bodyPreview,start,end,isAllDay,isCancelled,location,organizer,attendees,onlineMeeting,onlineMeetingUrl,webLink,responseStatus",
   })

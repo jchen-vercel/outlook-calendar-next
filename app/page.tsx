@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic"
 
 export default async function Page() {
   const result = await getUpcomingEvents()
+  // Show all events across the next 2 weeks: the "Up Next" hero card plus the rest.
   const [upNext, ...rest] = result.events
 
   return (
