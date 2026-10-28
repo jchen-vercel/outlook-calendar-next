@@ -10,7 +10,7 @@ export function SetupState({ message, connectorUid }: { message?: string; connec
     {
       title: "Create the Microsoft Graph connector",
       code: "vercel connect create login.microsoftonline.com --name microsoft-graph",
-      desc: "Registers a Custom OAuth connector. Use your Azure app's client ID and secret, with the Microsoft OAuth 2.0 endpoints and Calendars.Read scope.",
+      desc: "Registers a Custom OAuth connector. Use your Azure app's client ID and secret, with the Microsoft OAuth 2.0 endpoints. Enable delegated Calendars.Read, Calendars.ReadWrite, and User.Read permissions. Write consent is requested on the first save.",
     },
     {
       title: "Attach it to this project",

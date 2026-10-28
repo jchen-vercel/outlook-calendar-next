@@ -13,6 +13,7 @@ export function RefreshButton() {
       type="button"
       onClick={() => startTransition(() => router.refresh())}
       disabled={isPending}
+      aria-label={isPending ? 'Refreshing calendar' : 'Refresh calendar'}
       className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-60"
     >
       <RefreshCw className={`size-4 ${isPending ? "animate-spin" : ""}`} aria-hidden="true" />

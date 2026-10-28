@@ -1,23 +1,25 @@
 import { CalendarDays } from 'lucide-react'
-import { getUpcomingEvents, MS_GRAPH_CONNECTOR } from '@/lib/graph'
-import { UpNextCard } from '@/components/up-next-card'
-import { UpcomingList } from '@/components/upcoming-list'
+import { createHash } from 'node:crypto'
+import { getUpcomingEvents, getCurrentUserId, MS_GRAPH_CONNECTOR } from '@/lib/graph'
+import { CalendarAgenda } from '@/components/calendar-agenda'
+import { EventComposer, NewEventButton, EventCreationNotice } from '@/components/event-composer'
 import { ConnectState } from '@/components/connect-state'
 import { SetupState } from '@/components/setup-state'
-import { EmptyState } from '@/components/empty-state'
 import { RefreshButton } from '@/components/refresh-button'
 import { headers } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
 
 export default async function Page() {
-  const result = await getUpcomingEvents(await headers())
-  // Show all events across the next 2 weeks: the "Up Next" hero card plus the rest.
-  const [upNext, ...rest] = result.events
+  const requestHeaders = await headers()
+  const result = await getUpcomingEvents(requestHeaders)
+  const identity = getCurrentUserId(requestHeaders)
+  const draftKey = identity.ok ? createHash('sha256').update(identity.userId).digest('hex') : 'signed-out'
 
   return (
+    <EventComposer key={draftKey} draftKey={draftKey} account={result.account}>
     <main className="mx-auto min-h-screen w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-      <header className="flex items-center justify-between gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <CalendarDays className="size-5" aria-hidden="true" />
@@ -29,8 +31,10 @@ export default async function Page() {
             </p>
           </div>
         </div>
-        {result.status === 'connected' && <RefreshButton />}
+        {result.status === 'connected' && <div className="flex shrink-0 items-center gap-2"><NewEventButton /><RefreshButton /></div>}
       </header>
+
+      <EventCreationNotice />
 
       <div className="mt-8">
         {result.status === 'needs_setup' && <SetupState message={result.message} connectorUid={MS_GRAPH_CONNECTOR} />}
@@ -58,20 +62,13 @@ export default async function Page() {
           </div>
         )}
 
-        {result.status === 'connected' &&
-          (upNext ? (
-            <>
-              <UpNextCard event={upNext} />
-              <UpcomingList events={rest} />
-            </>
-          ) : (
-            <EmptyState account={result.account} />
-          ))}
+        {result.status === 'connected' && <CalendarAgenda events={result.events} account={result.account} />}
       </div>
 
       <footer className="mt-12 border-t border-border pt-6 text-center text-xs text-muted-foreground">
-        Authenticated with Microsoft Graph via Vercel Connect · read-only calendar access
+        Microsoft Graph via Vercel Connect · Calendar write access is requested when you create an event
       </footer>
     </main>
+    </EventComposer>
   )
 }

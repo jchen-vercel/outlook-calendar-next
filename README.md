@@ -1,6 +1,12 @@
 # Up Next — Outlook Calendar on Vercel
 
-A small [Next.js](https://nextjs.org) app that shows the signed-in user's upcoming Microsoft Outlook calendar events (the next 2 weeks), read from [Microsoft Graph](https://learn.microsoft.com/graph/overview).
+A small [Next.js](https://nextjs.org) app that shows the signed-in user's upcoming Microsoft Outlook calendar events (the next 2 weeks) and creates personal appointments in their default calendar through [Microsoft Graph](https://learn.microsoft.com/graph/overview).
+
+Select **New event** to enter a title, start and end, time zone, optional location and notes, or an all-day date range. The dialog uses your device's time zone when Outlook supports it. Dates on all-day events are inclusive in the form. Events are saved as busy appointments with normal Outlook visibility and default reminders; no invitations are sent. Invitations, recurrence, Teams meetings, editing, and deleting are outside this version.
+
+The agenda initially requests read access. On your first save, the app requests `Calendars.ReadWrite` through Vercel Connect. If authorization is needed, select **Enable Outlook access**. Your draft is kept in this tab's session storage, scoped to your sign-in identity, and restored after authorization. Select **Save event** again to finish; returning from consent never automatically creates an event. If temporary storage is blocked, authorization opens in another tab so the original form stays available.
+
+After saving, the agenda refreshes and a confirmation links to the event in Outlook. Events outside the next 14 days are saved but do not appear in the agenda. If a connection drops during saving, the form keeps the exact submitted request and locks its fields: **Retry save** reuses its Graph transaction ID to reduce duplicate creation.
 
 It uses two Vercel platform features instead of rolling its own auth and token storage:
 
@@ -27,7 +33,7 @@ Because both Passport and Connect inject what they need at the edge, **the app o
 
 ## 1. Register the application in Microsoft Entra ID
 
-Microsoft Graph access requires an OAuth app registration. Connect does not (yet) have a built-in Entra / Microsoft Graph connector, so the OAuth client lives in a custom integration that points at this Entra app.
+Microsoft Graph access requires an OAuth app registration. The default `oauth/microsoft-graph` connector described here uses a custom OAuth registration in Microsoft Entra ID. You can also use an existing Microsoft Graph connector by setting `MS_GRAPH_CONNECTOR` to its UID.
 
 1. Go to [Entra ID → App registrations](https://entra.microsoft.com) → **New registration**.
 2. Give it a name (e.g. `Up Next Calendar`).
@@ -42,15 +48,15 @@ Microsoft Graph access requires an OAuth app registration. Connect does not (yet
 
 5. Under **Certificates & secrets**, create a **client secret**. Copy the secret **value** (not ID) — it is only shown once.
 6. From the app's **Overview** page, copy the **Application (client) ID**.
-7. (Recommended) Under **API permissions**, add delegated Microsoft Graph permissions `Calendars.Read` and `User.Read`, then grant admin consent if your tenant requires it. (Users are also prompted to consent during the OAuth flow.)
+7. Under **API permissions**, add delegated Microsoft Graph permissions `Calendars.Read`, `Calendars.ReadWrite`, and `User.Read`, then grant admin consent if your tenant requires it. Read permission is requested on connection; write permission is requested when saving the first event. An existing read-only connection can continue showing the agenda until the user chooses to authorize creation.
 
 You now have a **client ID**, a **client secret**, and the redirect URI registered.
 
 ## 2. Configure Vercel Connect
 
 The app requests the Microsoft Graph token through a [Vercel Connect](https://vercel.com/docs/connect)
-connector. Connect does not yet have a built-in Entra / Microsoft Graph connector, so add it
-**manually** as a custom OAuth connector using the values below:
+connector. To configure the default custom OAuth connector, add it
+**manually** using the values below:
 
 | Setting | Value |
 | --- | --- |
@@ -62,7 +68,7 @@ connector. Connect does not yet have a built-in Entra / Microsoft Graph connecto
 | **Client Secret** | the client secret value from Entra (step 1) |
 | **PKCE** | Enabled, challenge method **S256** (optional, but recommended) |
 | **User authorization** | Enabled |
-| **Scopes** | `openid profile` |
+| **Scopes** | Allow `openid profile offline_access Calendars.Read Calendars.ReadWrite User.Read`. The app selects read or write scopes for each operation. |
 
 > **Tenant note:** `common` in the authorization and token endpoints is for **multitenant** apps.  
 > For a single-tenant app, replace `common` with your tenant ID (or verified domain), e.g. `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize` and the matching `/token` endpoint.
@@ -132,9 +138,23 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 ## How it works (code map)
 
-- `lib/graph.ts` — the core logic: reads the Passport user ID, gets a Graph token via Connect (`getToken` / `startAuthorization`), and fetches `/me/calendarView`. It also maps recoverable errors (needs authorization, needs setup) to UI states.
+- `lib/graph.ts` — reads the Passport user ID, gets a Graph token via Connect (`getToken` / `startAuthorization`), fetches `/me/calendarView` and supported time zones, and creates appointments with `POST /me/events`. It maps recoverable errors to UI states.
+- `app/actions.ts` — authenticated Server Actions for loading time zones and creating events.
+- `lib/event-validation.ts` — validates untrusted input and builds Graph requests using Temporal. Invalid dates, reversed ranges, and skipped or ambiguous daylight-saving times produce field errors.
 - `app/page.tsx` — server component that renders the appropriate state (connected, needs setup, needs authorization, Passport missing, error).
 - `components/` — the calendar UI (up-next hero card, upcoming list, setup/connect states).
+
+## Verification
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm build
+```
+
+Tests mock Connect and Graph; they do not create real calendar entries. Component tests cover the dialog, permission recovery, session drafts, uncertain-save retries, and save feedback. The default local app still requires Passport and Connect, as described above; there is no development authentication bypass.
+
+For deployment acceptance, use a Passport-protected Vercel preview with the connector attached. Verify the read-only agenda before granting write access, then create a timed appointment in another time zone and a multi-day all-day appointment. Confirm the dates, times, location, and notes directly in Outlook. Also test a date beyond the 14-day agenda and a denied authorization attempt. The write permission is broader than creation, but this app exposes creation only.
 
 ---
 

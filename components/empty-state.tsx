@@ -1,4 +1,5 @@
 import { CalendarX2 } from "lucide-react"
+import { NewEventButton } from './event-composer'
 
 export function EmptyState({ account }: { account?: string | null }) {
   return (
@@ -8,9 +9,10 @@ export function EmptyState({ account }: { account?: string | null }) {
       </div>
       <h2 className="mt-6 text-2xl font-semibold tracking-tight">Nothing on the horizon</h2>
       <p className="mx-auto mt-2 max-w-sm text-pretty leading-relaxed text-muted-foreground">
-        You have no upcoming events in the next 7 days
+        You have no upcoming events in the next 14 days
         {account ? ` on ${account}` : ""}. Enjoy the open calendar.
       </p>
+      <NewEventButton className="mt-6" />
     </div>
   )
 }
