@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Clock, MapPin, Video } from "lucide-react"
 import type { CalendarEvent } from "@/lib/calendar-types"
-import { formatTimeRange, relativeStart, groupByDay } from "@/lib/time"
+import { formatEventTimeRange, relativeStart, groupByDay, eventTimeBounds } from "@/lib/time"
 
 function useNow(intervalMs = 30000): number {
   const [now, setNow] = useState(() => Date.now())
@@ -50,7 +50,7 @@ export function UpcomingList({ events }: { events: CalendarEvent[] }) {
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
                         <Clock className="size-3.5" aria-hidden="true" />
-                        {formatTimeRange(event.start, event.end, event.isAllDay)}
+                        {formatEventTimeRange(event)}
                       </span>
                       {event.location && (
                         <span className="inline-flex max-w-[14rem] items-center gap-1 truncate">
@@ -61,7 +61,7 @@ export function UpcomingList({ events }: { events: CalendarEvent[] }) {
                     </div>
                   </div>
                   <div className="hidden shrink-0 text-right text-xs font-medium text-muted-foreground sm:block">
-                    {relativeStart(event.start, event.end, now)}
+                    {relativeStart(new Date(eventTimeBounds(event).start).toISOString(), new Date(eventTimeBounds(event).end).toISOString(), now)}
                   </div>
                   {event.onlineMeetingUrl && (
                     <a

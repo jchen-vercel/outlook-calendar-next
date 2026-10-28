@@ -1,4 +1,39 @@
-import type { CalendarEvent } from './calendar-types'
+import type { CalendarEvent, CreatedEvent } from './calendar-types'
+
+/** Parse calendar dates as local dates, rather than midnight UTC. */
+function localDate(date: string): Date {
+  const [year, month, day] = date.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+export function eventTimeBounds(event: Pick<CreatedEvent, 'start' | 'end' | 'isAllDay' | 'allDayStartDate' | 'allDayEndDate'>) {
+  return {
+    start: event.isAllDay && event.allDayStartDate ? localDate(event.allDayStartDate).getTime() : new Date(event.start).getTime(),
+    end: event.isAllDay && event.allDayEndDate ? localDate(event.allDayEndDate).getTime() : new Date(event.end).getTime(),
+  }
+}
+
+export function upcomingEvents(events: CalendarEvent[], nowMs: number): CalendarEvent[] {
+  return events.filter((event) => eventTimeBounds(event).end > nowMs)
+    .sort((a, b) => eventTimeBounds(a).start - eventTimeBounds(b).start)
+}
+
+export function formatEventDayLabel(event: CalendarEvent): string {
+  return formatDayLabel(event.isAllDay && event.allDayStartDate
+    ? localDate(event.allDayStartDate).toISOString() : event.start)
+}
+
+export function formatEventTimeRange(event: CalendarEvent): string {
+  if (!event.isAllDay || !event.allDayStartDate || !event.allDayEndDate) {
+    return formatTimeRange(event.start, event.end, event.isAllDay)
+  }
+  const start = localDate(event.allDayStartDate)
+  const last = localDate(event.allDayEndDate)
+  last.setDate(last.getDate() - 1)
+  if (start.getTime() === last.getTime()) return 'All day'
+  const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+  return `All day · ${start.toLocaleDateString([], options)} – ${last.toLocaleDateString([], options)}`
+}
 
 export function formatTimeRange(startIso: string, endIso: string, allDay: boolean): string {
   if (allDay) {
@@ -34,7 +69,7 @@ export function relativeStart(startIso: string, endIso: string, nowMs: number): 
   const end = new Date(endIso).getTime()
   const diffMs = start - nowMs
 
-  if (nowMs >= start && nowMs <= end) {
+  if (nowMs >= start && nowMs < end) {
     return 'In progress'
   }
   if (diffMs < 0) {
@@ -64,7 +99,7 @@ export function countdown(startIso: string, endIso: string, nowMs: number): stri
   const start = new Date(startIso).getTime()
   const end = new Date(endIso).getTime()
 
-  if (nowMs >= start && nowMs <= end) {
+  if (nowMs >= start && nowMs < end) {
     const remaining = end - nowMs
     return `${pad(Math.floor(remaining / 3600000))}:${pad(Math.floor((remaining % 3600000) / 60000))}:${pad(
       Math.floor((remaining % 60000) / 1000)
@@ -90,7 +125,7 @@ function pad(n: number): string {
 export function groupByDay(events: CalendarEvent[]): { day: string; events: CalendarEvent[] }[] {
   const groups = new Map<string, CalendarEvent[]>()
   for (const e of events) {
-    const key = formatDayLabel(e.start)
+    const key = formatEventDayLabel(e)
     if (!groups.has(key)) {
       groups.set(key, [])
     }

@@ -7,8 +7,12 @@ import {
   ConnectError,
 } from '@vercel/connect'
 
-import type { CalendarEvent, CalendarResult } from './calendar-types'
-import { ReadonlyHeaders } from 'next/dist/server/web/spec-extension/adapters/headers'
+import type {
+  CalendarEvent, CalendarResult, CalendarActionFailure, CreateEventResult,
+  TimeZoneOption, TimeZonesResult,
+} from './calendar-types'
+import { validateEventInput } from './event-validation'
+import type { ReadonlyHeaders } from 'next/dist/server/web/spec-extension/adapters/headers'
 
 /**
  * The Vercel Connect connector UID for Microsoft Graph.
@@ -26,21 +30,25 @@ export const MS_GRAPH_CONNECTOR = process.env.MS_GRAPH_CONNECTOR ?? 'oauth/micro
  * `offline_access` lets Vercel Connect refresh the token for you.
  */
 export const MS_GRAPH_SCOPES = ['openid', 'profile', 'offline_access', 'Calendars.Read', 'User.Read']
+export const MS_GRAPH_WRITE_SCOPES = ['openid', 'profile', 'offline_access', 'Calendars.ReadWrite', 'User.Read']
 
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
 
 export function getCurrentUserId(headers: ReadonlyHeaders): { userId: string; ok: true } | { ok: false } {
-  // Get the current user from Vercel Passport
-  // We get the token but don't validate it since we're running on Vercel
+  // Passport validates this header at Vercel's edge. Never take identity from form data.
   const token = headers.get('x-vercel-oidc-passport-token')
   if (!token) {
     return { ok: false }
   }
-  const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
-  if (!payload?.external_sub) {
+  try {
+    if (token.split('.').length !== 3) return { ok: false }
+    const payload: unknown = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
+    if (!payload || typeof payload !== 'object' || !('external_sub' in payload) ||
+      typeof payload.external_sub !== 'string' || !payload.external_sub.trim()) return { ok: false }
+    return { ok: true, userId: payload.external_sub }
+  } catch {
     return { ok: false }
   }
-  return { ok: true, userId: payload.external_sub }
 }
 
 /**
@@ -96,6 +104,8 @@ function mapEvent(e: GraphEvent): CalendarEvent {
     start: toIsoUtc(e.start),
     end: toIsoUtc(e.end),
     isAllDay: Boolean(e.isAllDay),
+    allDayStartDate: e.isAllDay ? e.start?.dateTime.slice(0, 10) ?? null : null,
+    allDayEndDate: e.isAllDay ? e.end?.dateTime.slice(0, 10) ?? null : null,
     location: e.location?.displayName?.trim() || null,
     organizer: e.organizer?.emailAddress?.name || e.organizer?.emailAddress?.address || null,
     attendees: (e.attendees ?? [])
@@ -119,7 +129,8 @@ function mapEvent(e: GraphEvent): CalendarEvent {
  */
 async function getGraphToken(
   userId: string,
-  callbackUrl?: string
+  callbackUrl?: string,
+  scopes = MS_GRAPH_SCOPES,
 ): Promise<
   | { ok: true; token: string }
   | { ok: false; status: 'needs_authorization'; authorizationUrl?: string }
@@ -129,7 +140,7 @@ async function getGraphToken(
   try {
     const token = await getToken(MS_GRAPH_CONNECTOR, {
       subject: { type: 'user', id: userId },
-      scopes: MS_GRAPH_SCOPES,
+      scopes,
     })
     return { ok: true, token }
   } catch (error) {
@@ -144,7 +155,7 @@ async function getGraphToken(
           MS_GRAPH_CONNECTOR,
           {
             subject: { type: 'user', id: userId },
-            scopes: MS_GRAPH_SCOPES,
+            scopes,
           },
           // Send the user back to the app once Connect finishes the OAuth flow.
           callbackUrl ? { callbackUrl } : undefined
@@ -182,12 +193,13 @@ async function getGraphToken(
       }
     }
 
-    return { ok: false, status: 'error', message }
+    return { ok: false, status: 'error', message: 'Could not obtain Outlook access. Please try again.' }
   }
 }
 
-async function graphFetch(token: string, path: string): Promise<Response> {
+async function graphFetch(token: string, path: string, init: RequestInit = {}): Promise<Response> {
   return fetch(`${GRAPH_BASE}${path}`, {
+    ...init,
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -195,6 +207,7 @@ async function graphFetch(token: string, path: string): Promise<Response> {
       'Prefer': 'outlook.timezone="UTC"',
     },
     cache: 'no-store',
+    signal: AbortSignal.timeout(20000),
   })
 }
 
@@ -271,7 +284,8 @@ export async function getUpcomingEvents(headers: ReadonlyHeaders): Promise<Calen
       .filter((e) => !e.isCancelled)
       .map(mapEvent)
       // Only keep events that haven't ended yet.
-      .filter((e) => new Date(e.end).getTime() >= now.getTime())
+      // All-day dates are filtered in the browser's calendar timezone, not the server's.
+      .filter((e) => e.isAllDay || new Date(e.end).getTime() > now.getTime())
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
 
     return {
@@ -285,5 +299,129 @@ export async function getUpcomingEvents(headers: ReadonlyHeaders): Promise<Calen
       events: [],
       message: error instanceof Error ? error.message : 'Failed to reach Microsoft Graph.',
     }
+  }
+}
+
+function tokenFailure(result: Exclude<Awaited<ReturnType<typeof getGraphToken>>, { ok: true }>): CalendarActionFailure {
+  if (result.status === 'needs_authorization') {
+    return { status: result.status, authorizationUrl: result.authorizationUrl,
+      message: 'Authorize Outlook access, then return here and save your event.' }
+  }
+  if (result.status === 'error') return { status: 'error', message: result.message, uncertain: false }
+  return { status: result.status, message: result.message }
+}
+
+async function authorizationFailure(userId: string, callbackUrl: string | undefined, scopes: string[], forbidden = false): Promise<CalendarActionFailure> {
+  const { url } = await startAuthorization(MS_GRAPH_CONNECTOR, {
+    subject: { type: 'user', id: userId }, scopes,
+  }, callbackUrl ? { callbackUrl } : undefined).catch(() => ({ url: undefined }))
+  return {
+    status: 'needs_authorization', authorizationUrl: url,
+    message: forbidden
+      ? 'Outlook denied access. Reconnect with calendar permission. If this persists, your organization may require administrator approval.'
+      : 'Enable calendar creation in Outlook, then return here and save your event.',
+  }
+}
+
+class GraphResponseError extends Error {
+  constructor(public response: Response) { super(`Microsoft Graph returned ${response.status}`) }
+}
+
+async function readTimeZones(token: string): Promise<TimeZoneOption[]> {
+  const response = await graphFetch(token, "/me/outlook/supportedTimeZones(TimeZoneStandard=microsoft.graph.timeZoneStandard'Iana')")
+  if (!response.ok) throw new GraphResponseError(response)
+  const data = await response.json() as { value?: { alias?: unknown; displayName?: unknown }[] }
+  const zones = new Map<string, TimeZoneOption>()
+  for (const zone of data.value ?? []) {
+    if (typeof zone.alias !== 'string') continue
+    try {
+      // Only expose zones that both Graph and this runtime understand.
+      new Intl.DateTimeFormat('en', { timeZone: zone.alias })
+      zones.set(zone.alias, { id: zone.alias, label: typeof zone.displayName === 'string' ? zone.displayName : zone.alias })
+    } catch { /* Ignore unsupported legacy aliases. */ }
+  }
+  if (!zones.size) throw new Error('No supported time zones')
+  return [...zones.values()].sort((a, b) => a.id.localeCompare(b.id))
+}
+
+function graphError(response: Response, uncertain: boolean): CalendarActionFailure {
+  if (response.status === 429) {
+    const seconds = Number(response.headers.get('retry-after'))
+    return { status: 'error', uncertain: false,
+      message: `Outlook is receiving too many requests. ${seconds > 0 ? `Wait ${seconds} seconds` : 'Wait a moment'} before retrying.` }
+  }
+  return { status: 'error', uncertain,
+    message: uncertain
+      ? 'Outlook could not confirm whether the event was saved. Retry this same request to avoid creating a duplicate.'
+      : 'Outlook could not complete this request. Your draft is unchanged. Please try again.' }
+}
+
+export async function getSupportedTimeZones(headers: ReadonlyHeaders): Promise<TimeZonesResult> {
+  const identity = getCurrentUserId(headers)
+  if (!identity.ok) return { status: 'passport_missing', message: 'Sign in to load Outlook time zones.' }
+  const origin = getAppOrigin(headers)
+  const callbackUrl = origin ? `${origin}/?newEvent=1` : undefined
+  const token = await getGraphToken(identity.userId, callbackUrl)
+  if (!token.ok) return tokenFailure(token)
+  try {
+    return { status: 'success', timeZones: await readTimeZones(token.token) }
+  } catch (error) {
+    if (error instanceof GraphResponseError) {
+      if ([401, 403].includes(error.response.status)) {
+        return authorizationFailure(identity.userId, callbackUrl, MS_GRAPH_SCOPES, error.response.status === 403)
+      }
+      return graphError(error.response, false)
+    }
+    return { status: 'error', uncertain: false, message: 'Could not load Outlook time zones. Please retry.' }
+  }
+}
+
+export async function createCalendarEvent(headers: ReadonlyHeaders, input: unknown): Promise<CreateEventResult> {
+  const identity = getCurrentUserId(headers)
+  if (!identity.ok) return { status: 'passport_missing', message: 'Sign in before creating an event.' }
+  const validation = validateEventInput(input)
+  if (!validation.ok) return { status: 'validation_error', fieldErrors: validation.fieldErrors }
+  const value = validation.value
+  const origin = getAppOrigin(headers)
+  const callbackUrl = origin ? `${origin}/?newEvent=1` : undefined
+  const token = await getGraphToken(identity.userId, callbackUrl, MS_GRAPH_WRITE_SCOPES)
+  if (!token.ok) return tokenFailure(token)
+
+  // Validate against this mailbox's supported zones before any write.
+  try {
+    const zones = await readTimeZones(token.token)
+    if (!zones.some((zone) => zone.id === value.input.timeZone)) {
+      return { status: 'validation_error', fieldErrors: { timeZone: 'Choose a time zone supported by your Outlook mailbox.' } }
+    }
+  } catch (error) {
+    if (error instanceof GraphResponseError) {
+      if ([401, 403].includes(error.response.status)) {
+        return authorizationFailure(identity.userId, callbackUrl, MS_GRAPH_WRITE_SCOPES, error.response.status === 403)
+      }
+      return graphError(error.response, false)
+    }
+    return { status: 'error', uncertain: false, message: 'Could not verify the time zone. Your event has not been sent. Please retry.' }
+  }
+
+  try {
+    const response = await graphFetch(token.token, '/me/events', {
+      method: 'POST', body: JSON.stringify(value.graphBody),
+    })
+    if ([401, 403].includes(response.status)) {
+      return authorizationFailure(identity.userId, callbackUrl, MS_GRAPH_WRITE_SCOPES, response.status === 403)
+    }
+    if (!response.ok) return graphError(response, response.status >= 500 || response.status === 408)
+    const event = await response.json() as { id?: string; webLink?: string }
+    if (typeof event.id !== 'string' || !event.id) throw new Error('Missing event ID')
+    const webLink = typeof event.webLink === 'string' && event.webLink.startsWith('https://') ? event.webLink : null
+    return { status: 'success', event: {
+      id: event.id, subject: value.input.title, start: value.startUtc, end: value.endUtc,
+      isAllDay: value.input.isAllDay, webLink,
+      allDayStartDate: value.input.isAllDay ? value.input.start : null,
+      allDayEndDate: value.input.isAllDay ? value.graphBody.end.dateTime.slice(0, 10) : null,
+    } }
+  } catch {
+    return { status: 'error', uncertain: true,
+      message: 'The connection was interrupted and the save status is unknown. Retry this same request to avoid creating a duplicate.' }
   }
 }

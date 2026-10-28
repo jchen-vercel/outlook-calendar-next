@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Clock, MapPin, Video, Users, ExternalLink, CalendarClock } from "lucide-react"
 import type { CalendarEvent } from "@/lib/calendar-types"
-import { countdown, formatTimeRange, formatDayLabel, initials } from "@/lib/time"
+import { countdown, formatEventTimeRange, formatEventDayLabel, eventTimeBounds, initials } from "@/lib/time"
 
 function useNow(intervalMs = 1000): number {
   const [now, setNow] = useState(() => Date.now())
@@ -16,10 +16,9 @@ function useNow(intervalMs = 1000): number {
 
 export function UpNextCard({ event }: { event: CalendarEvent }) {
   const now = useNow(1000)
-  const startMs = new Date(event.start).getTime()
-  const endMs = new Date(event.end).getTime()
-  const inProgress = now >= startMs && now <= endMs
-  const cd = countdown(event.start, event.end, now)
+  const { start: startMs, end: endMs } = eventTimeBounds(event)
+  const inProgress = now >= startMs && now < endMs
+  const cd = countdown(new Date(startMs).toISOString(), new Date(endMs).toISOString(), now)
   const visibleAttendees = event.attendees.slice(0, 5)
   const extra = event.attendees.length - visibleAttendees.length
 
@@ -35,7 +34,7 @@ export function UpNextCard({ event }: { event: CalendarEvent }) {
         />
         <span id="up-next-heading">{inProgress ? "Happening now" : "Up next"}</span>
         <span className="text-muted-foreground/60">·</span>
-        <span>{formatDayLabel(event.start)}</span>
+        <span>{formatEventDayLabel(event)}</span>
       </div>
 
       <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -46,7 +45,7 @@ export function UpNextCard({ event }: { event: CalendarEvent }) {
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Clock className="size-4" aria-hidden="true" />
-              {formatTimeRange(event.start, event.end, event.isAllDay)}
+              {formatEventTimeRange(event)}
             </span>
             {event.location && (
               <span className="inline-flex items-center gap-1.5">

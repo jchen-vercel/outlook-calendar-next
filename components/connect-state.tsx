@@ -11,8 +11,8 @@ export function ConnectState({ authorizationUrl }: { authorizationUrl?: string }
       </h2>
       <p className="mx-auto mt-3 max-w-md text-pretty leading-relaxed text-muted-foreground">
         Authorize access through Vercel Connect to see what&apos;s next on your Microsoft Outlook
-        calendar. Your credentials never touch this app — Vercel Connect brokers a short-lived,
-        read-only token on your behalf.
+        calendar. Vercel Connect manages authorization and short-lived tokens. Calendar write
+        permission is requested separately when you create your first event.
       </p>
 
       {authorizationUrl ? (
@@ -31,8 +31,8 @@ export function ConnectState({ authorizationUrl }: { authorizationUrl?: string }
       <ul className="mx-auto mt-8 grid max-w-lg gap-3 text-left sm:grid-cols-3">
         <li className="flex flex-col items-start gap-2 rounded-xl bg-secondary p-4">
           <ShieldCheck className="size-5 text-primary" aria-hidden="true" />
-          <span className="text-sm font-medium">Read-only</span>
-          <span className="text-xs text-muted-foreground">Calendars.Read scope only</span>
+          <span className="text-sm font-medium">Read first</span>
+          <span className="text-xs text-muted-foreground">Write access when you create</span>
         </li>
         <li className="flex flex-col items-start gap-2 rounded-xl bg-secondary p-4">
           <Zap className="size-5 text-primary" aria-hidden="true" />
