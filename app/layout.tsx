@@ -10,9 +10,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Up Next · Outlook Calendar',
+  title: 'Up Next · Passport + Connect in practice',
   description:
-    "See what's next and create personal events on your Microsoft Outlook calendar. Authenticated with Microsoft Graph via Vercel Connect.",
+    'Compare enterprise-managed identity and credentials with Passport + Vercel Connect, alongside a working Microsoft Outlook calendar.',
   icons: {
     icon: [
       {

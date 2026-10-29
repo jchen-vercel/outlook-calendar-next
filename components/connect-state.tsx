@@ -41,8 +41,8 @@ export function ConnectState({ authorizationUrl }: { authorizationUrl?: string }
         </li>
         <li className="flex flex-col items-start gap-2 rounded-xl bg-secondary p-4">
           <CalendarCheck2 className="size-5 text-primary" aria-hidden="true" />
-          <span className="text-sm font-medium">No secrets</span>
-          <span className="text-xs text-muted-foreground">Brokered by Vercel Connect</span>
+          <span className="text-sm font-medium">Managed credentials</span>
+          <span className="text-xs text-muted-foreground">Microsoft client secrets and refresh tokens are managed outside this application.</span>
         </li>
       </ul>
     </div>
