@@ -174,6 +174,8 @@ pnpm typecheck
 pnpm build
 ```
 
+The showcase layout lives in `app/showcase.css`, imported directly by the root layout separately from Tailwind's global entry. The build checks the generated `.next/static` CSS for the critical showcase selectors; compilation alone is insufficient because a preview previously built successfully while omitting those rules. Run `pnpm verify:production-css` to repeat that asset check after a build.
+
 Tests mock Connect and Graph; they do not create real calendar entries. Component tests cover the dialog, permission recovery, session drafts, uncertain-save retries, and save feedback. The default local app still requires Passport and Connect, as described above; there is no development authentication bypass.
 
 Showcase tests cover matching scenario content, keyboard navigation, disclosure behavior, the absence of network/action side effects, all five live calendar states, and interaction while the live integration is suspended. For browser acceptance, check desktop/mobile and light/dark layouts, visible focus, reduced motion, and that the comparison remains usable without a live Passport identity. Real read/consent/write acceptance requires a configured Passport-protected deployment; a successful unit test is not evidence that a provider authorization or token refresh occurred.
