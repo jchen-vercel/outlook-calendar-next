@@ -37,7 +37,7 @@ export function UpNextCard({ event }: { event: CalendarEvent }) {
         <span>{formatEventDayLabel(event)}</span>
       </div>
 
-      <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <div className="mt-4 flex flex-col gap-6 @[36rem]:flex-row @[36rem]:items-end @[36rem]:justify-between">
         <div className="min-w-0">
           <h2 className="text-balance text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
             {event.subject}
@@ -62,7 +62,7 @@ export function UpNextCard({ event }: { event: CalendarEvent }) {
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col items-start gap-3 lg:items-end">
+        <div className="flex shrink-0 flex-col items-start gap-3 @[36rem]:items-end">
           <div
             className="rounded-2xl bg-accent px-4 py-3 text-accent-foreground"
             role="timer"

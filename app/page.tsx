@@ -1,74 +1,18 @@
-import { CalendarDays } from 'lucide-react'
-import { createHash } from 'node:crypto'
-import { getUpcomingEvents, getCurrentUserId, MS_GRAPH_CONNECTOR } from '@/lib/graph'
-import { CalendarAgenda } from '@/components/calendar-agenda'
-import { EventComposer, NewEventButton, EventCreationNotice } from '@/components/event-composer'
-import { ConnectState } from '@/components/connect-state'
-import { SetupState } from '@/components/setup-state'
-import { RefreshButton } from '@/components/refresh-button'
-import { headers } from 'next/headers'
+import { Suspense } from 'react'
+import { ArrowDown, ArrowUpRight, CalendarDays } from 'lucide-react'
+import { LiveCalendarLoading, LiveCalendarPanel } from '@/components/live-calendar-panel'
+import { ShowcaseExplorer } from '@/components/showcase-explorer'
+import { ShowcaseResponsibilities } from '@/components/showcase-responsibilities'
 
 export const dynamic = 'force-dynamic'
 
-export default async function Page() {
-  const requestHeaders = await headers()
-  const result = await getUpcomingEvents(requestHeaders)
-  const identity = getCurrentUserId(requestHeaders)
-  const draftKey = identity.ok ? createHash('sha256').update(identity.userId).digest('hex') : 'signed-out'
-
-  return (
-    <EventComposer key={draftKey} draftKey={draftKey} account={result.account}>
-    <main className="mx-auto min-h-screen w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <CalendarDays className="size-5" aria-hidden="true" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold leading-tight tracking-tight">Up Next</h1>
-            <p className="text-sm text-muted-foreground">
-              {result.status === 'connected' && result.account ? result.account : 'Microsoft Outlook calendar'}
-            </p>
-          </div>
-        </div>
-        {result.status === 'connected' && <div className="flex shrink-0 items-center gap-2"><NewEventButton /><RefreshButton /></div>}
-      </header>
-
-      <EventCreationNotice />
-
-      <div className="mt-8">
-        {result.status === 'needs_setup' && <SetupState message={result.message} connectorUid={MS_GRAPH_CONNECTOR} />}
-
-        {result.status === 'needs_authorization' && <ConnectState authorizationUrl={result.authorizationUrl} />}
-
-        {result.status === 'passport_missing' && (
-          <div className="rounded-3xl border border-destructive/30 bg-card p-8 text-center shadow-sm">
-            <h2 className="text-xl font-semibold tracking-tight">Vercel Passport not configured</h2>
-            <p className="mx-auto mt-2 max-w-md text-pretty leading-relaxed text-muted-foreground">
-              The project is not configured for Vercel Passport, no user token found in the request
-            </p>
-          </div>
-        )}
-
-        {result.status === 'error' && (
-          <div className="rounded-3xl border border-destructive/30 bg-card p-8 text-center shadow-sm">
-            <h2 className="text-xl font-semibold tracking-tight">Couldn&apos;t load your calendar</h2>
-            <p className="mx-auto mt-2 max-w-md text-pretty leading-relaxed text-muted-foreground">
-              {result.message ?? 'Something went wrong while reaching Microsoft Graph.'}
-            </p>
-            <div className="mt-6 flex justify-center">
-              <RefreshButton />
-            </div>
-          </div>
-        )}
-
-        {result.status === 'connected' && <CalendarAgenda events={result.events} account={result.account} />}
-      </div>
-
-      <footer className="mt-12 border-t border-border pt-6 text-center text-xs text-muted-foreground">
-        Microsoft Graph via Vercel Connect · Calendar write access is requested when you create an event
-      </footer>
-    </main>
-    </EventComposer>
-  )
+export default function Page() {
+  return <main className="showcase-shell">
+    <a href="#comparison-heading" className="skip-link">Skip to comparison</a>
+    <header className="showcase-nav"><a href="#" className="showcase-brand" aria-label="Up Next home"><span><CalendarDays className="size-4" aria-hidden="true" /></span>Up Next <span className="brand-divider" aria-hidden="true" /> <span className="brand-caption">An enterprise app field guide</span></a><a className="source-link" href="https://vercel.com/docs/connect" target="_blank" rel="noopener noreferrer">Read the docs <ArrowUpRight className="size-3.5" aria-hidden="true" /></a></header>
+    <section className="showcase-hero" aria-labelledby="showcase-heading"><p className="eyebrow"><span className="hero-dot" aria-hidden="true" /> Passport + Vercel Connect in practice</p><h1 id="showcase-heading">Same calendar.<br /><span>Less infrastructure for<br className="hidden sm:block" /> each team to operate.</span></h1><div className="hero-bottom"><p>Compare an enterprise-managed Entra integration with Passport + Vercel Connect. Explore who owns the work, then use the real Outlook application.</p><a href="#live-calendar" className="live-anchor">Open live calendar <ArrowDown className="size-4" aria-hidden="true" /></a></div></section>
+    <div className="showcase-workspace"><ShowcaseExplorer /><aside id="live-calendar" aria-labelledby="live-calendar-heading" tabIndex={-1} className="live-calendar-panel"><div className="live-panel-heading"><div><p className="eyebrow">Running implementation</p><h2 id="live-calendar-heading">Your live calendar</h2></div><span className="live-label"><span aria-hidden="true" />Live integration</span></div><p className="live-panel-description">This application uses Passport + Connect. The scenario walkthrough is illustrative.</p><Suspense fallback={<LiveCalendarLoading />}><LiveCalendarPanel /></Suspense></aside></div>
+    <ShowcaseResponsibilities />
+    <footer className="showcase-footer"><p>Up Next <span aria-hidden="true">/</span> A working calendar, with the infrastructure explained.</p><div><a href="https://vercel.com/docs/passport" target="_blank" rel="noopener noreferrer">Passport</a><a href="https://vercel.com/docs/connect" target="_blank" rel="noopener noreferrer">Connect</a><a href="https://learn.microsoft.com/en-us/entra/msal/overview" target="_blank" rel="noopener noreferrer">MSAL baseline</a></div></footer>
+  </main>
 }

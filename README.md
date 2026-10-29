@@ -1,4 +1,24 @@
-# Up Next — Outlook Calendar on Vercel
+# Up Next — Passport + Connect in practice
+
+An interactive field guide for enterprise platform and security teams, alongside a working Outlook calendar. The homepage compares an enterprise-managed Entra integration with Passport + Vercel Connect through five everyday scenarios. Its central message is **Same calendar. Less infrastructure for each team to operate.**
+
+The comparison is illustrated; the calendar is live. Scenario tabs only change educational content. They never authenticate a user, request credentials, change permissions, or create appointments. There is no sample-data mode or second authentication backend.
+
+## Presenting the showcase
+
+1. **Sign in:** compare application-integrated authentication and sessions with Passport's deployment sign-in. Entra remains the identity provider. Department and role authorization still belong to the application or a company authorization service.
+2. **Connect Outlook:** show how Connect operates authorization and persistent credentials while the application implements the consent and account-mapping experience.
+3. **Return later:** contrast enterprise-operated MSAL cache persistence with Connect's credential service. MSAL already handles caching and refresh; neither side needs hand-written OAuth. The expiry scenario is illustrative, not an observed refresh event.
+4. **Create an event:** explain the additional write authorization, then use the live form only if you intend to save a real appointment. Draft restoration, validation, and save recovery remain application behavior.
+5. **Add another app:** explain reusable Passport configuration and approved connector project links, followed by the responsibility comparison for shared setup, onboarding, and maintenance.
+
+Expand **Look at the implementation** for short examples and official references. **Open live calendar** moves to the real application. The live panel reports only the identity presence and calendar result observed on that page request, plus the configured connector UID. Requested scopes are explicitly not a report of granted permissions. Token expiry, refresh, and group membership are not inspected or displayed.
+
+The comparison remains usable while Outlook loads and in all configuration/error states. Passport still protects the whole deployed application; the showcase does not add a public path or authentication bypass. Locally, the real identity is unavailable, so the calendar shows its Passport configuration state while the illustrations remain interactive.
+
+This repository's custom connector still needs an Entra registration, credential maintenance, and applicable administrator consent. A shared Passport connection does not provide a per-project department policy editor. Connector links govern which projects/environments can request credentials; provider-level isolation may require separate connectors.
+
+## Live calendar
 
 A small [Next.js](https://nextjs.org) app that shows the signed-in user's upcoming Microsoft Outlook calendar events (the next 2 weeks) and creates personal appointments in their default calendar through [Microsoft Graph](https://learn.microsoft.com/graph/overview).
 
@@ -141,7 +161,9 @@ Then open [http://localhost:3000](http://localhost:3000).
 - `lib/graph.ts` — reads the Passport user ID, gets a Graph token via Connect (`getToken` / `startAuthorization`), fetches `/me/calendarView` and supported time zones, and creates appointments with `POST /me/events`. It maps recoverable errors to UI states.
 - `app/actions.ts` — authenticated Server Actions for loading time zones and creating events.
 - `lib/event-validation.ts` — validates untrusted input and builds Graph requests using Temporal. Invalid dates, reversed ranges, and skipped or ambiguous daylight-saving times produce field errors.
-- `app/page.tsx` — server component that renders the appropriate state (connected, needs setup, needs authorization, Passport missing, error).
+- `app/page.tsx` — composes the showcase and the live calendar Suspense boundary, so the comparison does not wait for Outlook.
+- `components/live-calendar-panel.tsx` — streams the existing live calendar independently of the showcase, preserving identity-scoped drafts and real connection states.
+- `components/showcase-explorer.tsx` and `lib/showcase.ts` — accessible scenario navigation and the illustrated ownership comparisons. These do not import server actions or request credentials.
 - `components/` — the calendar UI (up-next hero card, upcoming list, setup/connect states).
 
 ## Verification
@@ -152,7 +174,11 @@ pnpm typecheck
 pnpm build
 ```
 
+The showcase layout lives in `app/showcase.css`, imported directly by the root layout separately from Tailwind's global entry. The build checks the generated `.next/static` CSS for the critical showcase selectors; compilation alone is insufficient because a preview previously built successfully while omitting those rules. Run `pnpm verify:production-css` to repeat that asset check after a build.
+
 Tests mock Connect and Graph; they do not create real calendar entries. Component tests cover the dialog, permission recovery, session drafts, uncertain-save retries, and save feedback. The default local app still requires Passport and Connect, as described above; there is no development authentication bypass.
+
+Showcase tests cover matching scenario content, keyboard navigation, disclosure behavior, the absence of network/action side effects, all five live calendar states, and interaction while the live integration is suspended. For browser acceptance, check desktop/mobile and light/dark layouts, visible focus, reduced motion, and that the comparison remains usable without a live Passport identity. Real read/consent/write acceptance requires a configured Passport-protected deployment; a successful unit test is not evidence that a provider authorization or token refresh occurred.
 
 For deployment acceptance, use a Passport-protected Vercel preview with the connector attached. Verify the read-only agenda before granting write access, then create a timed appointment in another time zone and a multi-day all-day appointment. Confirm the dates, times, location, and notes directly in Outlook. Also test a date beyond the 14-day agenda and a denied authorization attempt. The write permission is broader than creation, but this app exposes creation only.
 

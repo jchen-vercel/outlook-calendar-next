@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
+import './showcase.css'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
 const geistMono = Geist_Mono({
@@ -10,9 +11,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Up Next · Outlook Calendar',
+  title: 'Up Next · Passport + Connect in practice',
   description:
-    "See what's next and create personal events on your Microsoft Outlook calendar. Authenticated with Microsoft Graph via Vercel Connect.",
+    'Compare enterprise-managed identity and credentials with Passport + Vercel Connect, alongside a working Microsoft Outlook calendar.',
   icons: {
     icon: [
       {
